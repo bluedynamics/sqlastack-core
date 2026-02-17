@@ -1,0 +1,54 @@
+[project]
+name = "sqlastack-core"
+version = "0.1.0.dev0"
+description = "Core SQL access layer: config, engine, session factory, exceptions."
+readme = "README.md"
+authors = [
+    {name = "Jens Klein", email = "jk@kleinundpartner.at"},
+]
+requires-python = ">=3.12"
+license = {text = "GPL 2.0"}
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "sqlalchemy>=2.0,<2.1",
+    "sqlmodel>=0.0.16,<1.0",
+]
+
+[project.optional-dependencies]
+dotenv = ["python-dotenv"]
+zope = ["zope.sqlalchemy>=4.0", "transaction"]
+test = ["pytest", "pytest-cov"]
+develop = ["sqlastack-core[dotenv,test]", "pdbp"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sqlastack"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+from-first = true
+lines-after-imports = 2
+no-sections = true
