@@ -51,35 +51,47 @@ class SQLAStackConfig:
     schema: str = "public"
 
     @classmethod
-    def from_env(cls) -> SQLAStackConfig:
+    def from_env(cls, name: str | None = None) -> SQLAStackConfig:
         """Load configuration from environment variables.
 
-        Attempts to load .env file first (if python-dotenv available).
+        If ``name`` is given, reads named variables ``SQLASTACK_<NAME>_URL``,
+        ``SQLASTACK_<NAME>_POOL_SIZE`` etc. If ``name`` is None, reads the legacy
+        ``DATABASE_URL`` / ``SQL_*`` variables.
+
+        Attempts to load a .env file first (if python-dotenv is available).
 
         Raises:
-            MissingDatabaseURL: If DATABASE_URL is not set.
-            InvalidConnectionString: If DATABASE_URL is malformed.
+            MissingDatabaseURL: If the URL variable is not set.
+            InvalidConnectionString: If the URL is malformed.
         """
         _load_dotenv()
 
-        database_url = os.environ.get("DATABASE_URL", "").strip()
+        if name is None:
+            url_key = "DATABASE_URL"
+            prefix = "SQL"
+        else:
+            upper = name.upper()
+            url_key = f"SQLASTACK_{upper}_URL"
+            prefix = f"SQLASTACK_{upper}"
+
+        database_url = os.environ.get(url_key, "").strip()
         if not database_url:
-            raise MissingDatabaseURL("DATABASE_URL environment variable is required")
+            raise MissingDatabaseURL(f"{url_key} environment variable is required")
         if "://" not in database_url:
             raise InvalidConnectionString(
-                f"DATABASE_URL must contain '://' scheme separator, got: {database_url!r}"
+                f"{url_key} must contain '://' scheme separator, got: {database_url!r}"
             )
 
         return cls(
             database_url=database_url,
-            pool_size=int(os.environ.get("SQL_POOL_SIZE", "5")),
-            pool_overflow=int(os.environ.get("SQL_POOL_OVERFLOW", "10")),
-            pool_timeout=int(os.environ.get("SQL_POOL_TIMEOUT", "30")),
-            pool_recycle=int(os.environ.get("SQL_POOL_RECYCLE", "3600")),
-            pool_pre_ping=_parse_bool(os.environ.get("SQL_POOL_PRE_PING", "true")),
-            echo=_parse_bool(os.environ.get("SQL_ECHO", "false")),
-            slow_query_ms=int(os.environ.get("SQL_SLOW_QUERY_MS", "1000")),
-            schema=os.environ.get("SQL_SCHEMA", "public"),
+            pool_size=int(os.environ.get(f"{prefix}_POOL_SIZE", "5")),
+            pool_overflow=int(os.environ.get(f"{prefix}_POOL_OVERFLOW", "10")),
+            pool_timeout=int(os.environ.get(f"{prefix}_POOL_TIMEOUT", "30")),
+            pool_recycle=int(os.environ.get(f"{prefix}_POOL_RECYCLE", "3600")),
+            pool_pre_ping=_parse_bool(os.environ.get(f"{prefix}_POOL_PRE_PING", "true")),
+            echo=_parse_bool(os.environ.get(f"{prefix}_ECHO", "false")),
+            slow_query_ms=int(os.environ.get(f"{prefix}_SLOW_QUERY_MS", "1000")),
+            schema=os.environ.get(f"{prefix}_SCHEMA", "public"),
         )
 
     @property

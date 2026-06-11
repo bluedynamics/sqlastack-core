@@ -28,6 +28,14 @@ class InvalidConnectionString(ConfigurationError):
     """Raised when the connection string is malformed."""
 
 
+class ZopeNotAvailable(ConfigurationError):
+    """Raised when zope=True is requested but zope.sqlalchemy is not installed."""
+
+
+class UnknownDatabase(ConfigurationError):
+    """Raised when a database name is requested that is not registered."""
+
+
 # --- Connection ---
 
 

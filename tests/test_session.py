@@ -56,9 +56,10 @@ def test_create_standalone_session(factory):
     session.close()
 
 
-def test_create_zope_raises(factory):
-    with pytest.raises(NotImplementedError, match="zope=False"):
-        factory.create(zope=True)
+def test_create_zope_true_works_when_installed(factory):
+    """With zope.sqlalchemy installed, create(zope=True) returns a session."""
+    session = factory.create(zope=True)
+    assert session is not None
 
 
 def test_session_scope_crud(factory):

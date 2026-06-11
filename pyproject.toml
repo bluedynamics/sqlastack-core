@@ -26,7 +26,9 @@ dependencies = [
 dotenv = ["python-dotenv"]
 zope = ["zope.sqlalchemy>=4.0", "transaction"]
 test = ["pytest", "pytest-cov"]
-develop = ["sqlastack-core[dotenv,test]", "pdbp"]
+test-zope = ["sqlastack-core[zope,test]"]
+testpg = ["sqlastack-core[test-zope]", "testcontainers>=4.0", "psycopg[binary]>=3.1"]
+develop = ["sqlastack-core[dotenv,testpg]", "pdbp"]
 
 [build-system]
 requires = ["hatchling"]

@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
-
-import sqlastack.core.exceptions as exc_mod
 from sqlastack.core.exceptions import CommitFailed
 from sqlastack.core.exceptions import ConfigurationError
 from sqlastack.core.exceptions import ConnectionError
@@ -24,6 +21,10 @@ from sqlastack.core.exceptions import RollbackFailed
 from sqlastack.core.exceptions import SQLAStackError
 from sqlastack.core.exceptions import TransactionError
 from sqlastack.core.exceptions import TwoPhaseCommitFailed
+from sqlastack.core.exceptions import UnknownDatabase
+from sqlastack.core.exceptions import ZopeNotAvailable
+import inspect
+import sqlastack.core.exceptions as exc_mod
 
 
 def test_base_error_message():
@@ -44,6 +45,7 @@ def test_hierarchy_configuration():
     assert issubclass(ConfigurationError, SQLAStackError)
     assert issubclass(MissingDatabaseURL, ConfigurationError)
     assert issubclass(InvalidConnectionString, ConfigurationError)
+    assert issubclass(ZopeNotAvailable, ConfigurationError)
 
 
 def test_hierarchy_connection():
@@ -78,3 +80,9 @@ def test_all_exceptions_are_sqlastack_error():
     for name, obj in inspect.getmembers(exc_mod, inspect.isclass):
         if issubclass(obj, Exception) and obj is not SQLAStackError:
             assert issubclass(obj, SQLAStackError), f"{name} is not a SQLAStackError"
+
+
+def test_unknown_database_is_configuration_error():
+    err = UnknownDatabase("no db named 'fh'")
+    assert isinstance(err, ConfigurationError)
+    assert "fh" in str(err)

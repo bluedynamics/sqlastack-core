@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-import pytest
 from sqlalchemy import Engine
-from sqlmodel import SQLModel
-
 from sqlastack.core.config import SQLAStackConfig
 from sqlastack.core.engine import create_sqlastack_engine
 from sqlastack.core.session import SessionFactory
+from sqlastack.core.testing import register_pg_fixtures
+from sqlmodel import SQLModel
+import pytest
+
+
+register_pg_fixtures(globals())
 
 
 @pytest.fixture
