@@ -61,13 +61,15 @@ def get_registry() -> DatabaseRegistry:
     per-request engine construction afterwards.
     """
     global _registry
-    if _registry is None:
+    registry = _registry
+    if registry is None:
         with _registry_lock:
-            if _registry is None:
+            registry = _registry
+            if registry is None:
                 registry = DatabaseRegistry.from_env()
                 registry.warm_up()
                 _registry = registry
-    return _registry
+    return registry
 
 
 def reset_registry() -> None:
@@ -86,5 +88,6 @@ def close_zope_sessions(event=None) -> None:
     subscriber for ZPublisher's ``IPubSuccess`` AND ``IPubFailure``. A request
     that never touched SQL is a no-op — the registry is not built here.
     """
-    if _registry is not None:
-        _registry.remove_zope_sessions()
+    registry = _registry
+    if registry is not None:
+        registry.remove_zope_sessions()
