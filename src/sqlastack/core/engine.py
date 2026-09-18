@@ -9,7 +9,6 @@ from typing import Any
 from sqlalchemy import Engine
 from sqlalchemy import create_engine
 from sqlalchemy import event
-from sqlalchemy.pool import StaticPool
 
 from sqlastack.core.config import SQLAStackConfig
 
@@ -20,29 +19,16 @@ def create_sqlastack_engine(config: SQLAStackConfig) -> Engine:
     """Create a SQLAlchemy Engine with dialect-appropriate settings.
 
     For PostgreSQL: configures connection pooling with all pool parameters.
-    For SQLite in-memory: uses StaticPool with check_same_thread=False.
-    For SQLite file: uses default pool settings.
+    Other dialects get SQLAlchemy's defaults.
     """
     kwargs: dict[str, Any] = {"echo": config.echo}
 
-    if config.is_sqlite:
-        kwargs.update(_build_sqlite_kwargs(config))
-    elif config.is_postgresql:
+    if config.is_postgresql:
         kwargs.update(_build_postgresql_kwargs(config))
 
     engine = create_engine(config.database_url, **kwargs)
     _attach_slow_query_listener(engine, config)
     return engine
-
-
-def _build_sqlite_kwargs(config: SQLAStackConfig) -> dict[str, Any]:
-    """Build engine kwargs for SQLite."""
-    if ":memory:" in config.database_url or "mode=memory" in config.database_url:
-        return {
-            "poolclass": StaticPool,
-            "connect_args": {"check_same_thread": False},
-        }
-    return {}
 
 
 def _build_postgresql_kwargs(config: SQLAStackConfig) -> dict[str, Any]:

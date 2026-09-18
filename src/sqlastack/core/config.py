@@ -117,11 +117,6 @@ class SQLAStackConfig:
         return scheme.split("+")[0]
 
     @property
-    def is_sqlite(self) -> bool:
-        """Return True if database_url points to SQLite."""
-        return self.dialect == "sqlite"
-
-    @property
     def is_postgresql(self) -> bool:
         """Return True if database_url points to PostgreSQL."""
         return self.dialect == "postgresql"
