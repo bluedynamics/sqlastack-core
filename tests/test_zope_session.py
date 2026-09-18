@@ -1,136 +1,101 @@
-"""Tests for Zope-integrated session mode."""
+"""Tests for the Zope-integrated session mode (PostgreSQL)."""
 
 from __future__ import annotations
 
-from unittest import mock
-
-import pytest
-import transaction
-from sqlmodel import Field
-from sqlmodel import SQLModel
-
-from sqlastack.core.config import SQLAStackConfig
-from sqlastack.core.engine import create_sqlastack_engine
 from sqlastack.core.exceptions import ZopeNotAvailable
 from sqlastack.core.session import SessionFactory
+from sqlmodel import Field
+from sqlmodel import SQLModel
+from unittest import mock
+import pytest
+import transaction
 
 
-# Test-only model
 class ZopeItem(SQLModel, table=True):
     __tablename__ = "test_zope_item"
-    __table_args__ = {"extend_existing": True}
 
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(max_length=100)
 
 
 @pytest.fixture
-def zope_factory():
-    config = SQLAStackConfig(database_url="sqlite:///:memory:")
-    engine = create_sqlastack_engine(config)
-    SQLModel.metadata.create_all(engine)
-    factory = SessionFactory(engine=engine)
+def zope_factory(pg_engine):
+    factory = SessionFactory(engine=pg_engine)
     yield factory
-    factory.dispose()
-
-
-def test_create_zope_true_returns_session(zope_factory):
-    """create(zope=True) returns a valid session."""
-    session = zope_factory.create(zope=True)
-    assert session is not None
-
-
-def test_create_zope_true_same_thread_same_session(zope_factory):
-    """Two calls in the same thread return the same session (scoped_session)."""
-    session1 = zope_factory.create(zope=True)
-    session2 = zope_factory.create(zope=True)
-    assert session1 is session2
-
-
-def test_create_zope_true_without_zope_raises(zope_factory):
-    """When HAS_ZOPE is False, create(zope=True) raises ZopeNotAvailable."""
-    with mock.patch("sqlastack.plone.HAS_ZOPE", False):
-        # Reset the lazy scoped session so it tries to create a new one
-        zope_factory._scoped_session = None
-        with pytest.raises(ZopeNotAvailable):
-            zope_factory.create(zope=True)
-
-
-def test_session_scope_zope_no_auto_commit(zope_factory):
-    """session_scope(zope=True) does not auto-commit."""
-    with zope_factory.session_scope(zope=True) as session:
-        session.add(ZopeItem(name="Uncommitted"))
-
-    # Without transaction.commit(), data should not be visible in a new standalone session
-    standalone_session = zope_factory.create(zope=False)
-    try:
-        items = standalone_session.query(ZopeItem).all()
-        assert len(items) == 0
-    finally:
-        standalone_session.close()
+    factory.remove_zope_session()
     transaction.abort()
+
+
+def test_zope_session_returns_shared_proxy(zope_factory):
+    s1 = zope_factory.zope_session()
+    s2 = zope_factory.zope_session()
+    assert s1 is s2
+
+
+def test_zope_session_checks_availability_every_call(zope_factory):
+    zope_factory.zope_session()  # lazily created
+    with mock.patch("sqlastack.plone.HAS_ZOPE", False):
+        with pytest.raises(ZopeNotAvailable):
+            zope_factory.zope_session()
+
+
+def test_create_has_no_zope_parameter(zope_factory):
+    with pytest.raises(TypeError):
+        zope_factory.create(zope=True)  # type: ignore[call-arg]
 
 
 def test_transaction_commit_persists_data(zope_factory):
-    """transaction.commit() persists data from a Zope session."""
-    with zope_factory.session_scope(zope=True) as session:
-        session.add(ZopeItem(name="Persisted"))
-
+    session = zope_factory.zope_session()
+    session.add(ZopeItem(name="Persisted"))
     transaction.commit()
 
-    # Data should be visible in a new standalone session
-    standalone_session = zope_factory.create(zope=False)
+    standalone = zope_factory.create()
     try:
-        items = standalone_session.query(ZopeItem).all()
+        items = standalone.query(ZopeItem).all()
         assert len(items) == 1
         assert items[0].name == "Persisted"
     finally:
-        standalone_session.close()
+        standalone.close()
 
 
 def test_transaction_abort_rolls_back(zope_factory):
-    """transaction.abort() rolls back data from a Zope session."""
-    with zope_factory.session_scope(zope=True) as session:
-        session.add(ZopeItem(name="Aborted"))
-
+    session = zope_factory.zope_session()
+    session.add(ZopeItem(name="Aborted"))
     transaction.abort()
 
-    # Data should not be visible
-    standalone_session = zope_factory.create(zope=False)
+    standalone = zope_factory.create()
     try:
-        items = standalone_session.query(ZopeItem).all()
-        assert len(items) == 0
+        assert standalone.query(ZopeItem).all() == []
     finally:
-        standalone_session.close()
+        standalone.close()
 
 
-def test_session_scope_standalone_unchanged(zope_factory):
-    """Standalone session_scope still commits on success."""
-    with zope_factory.session_scope(zope=False) as session:
-        session.add(ZopeItem(name="Standalone"))
-
-    standalone_session = zope_factory.create(zope=False)
-    try:
-        items = standalone_session.query(ZopeItem).all()
-        assert len(items) == 1
-        assert items[0].name == "Standalone"
-    finally:
-        standalone_session.close()
-
-
-def test_dispose_cleans_up_scoped_session(zope_factory):
-    """dispose() removes the scoped session."""
-    zope_factory.create(zope=True)
-    assert zope_factory._scoped_session is not None
-    zope_factory.dispose()
-    # After dispose, engine is disposed — creating new sessions would fail
-    # but the scoped session should have been removed
-
-
-def test_exception_propagates_in_zope_mode(zope_factory):
-    """Exceptions in Zope mode propagate without translation."""
-    with pytest.raises(ValueError, match="app error"):
-        with zope_factory.session_scope(zope=True) as session:
-            session.add(ZopeItem(name="Ghost"))
-            raise ValueError("app error")
+def test_failed_request_does_not_bleed_after_remove(zope_factory):
+    """Das Plan-2-Muster: Fehler in Request 1, Teardown, Request 2 ist sauber."""
+    session = zope_factory.zope_session()
+    session.add(ZopeItem(name="Ghost"))
+    # Request 1 schlägt fehl: der Publisher würde abort() rufen, wir simulieren das
     transaction.abort()
+    zope_factory.remove_zope_session()
+
+    # Request 2 im selben Thread: keine Ghost-Row, frische Session
+    session2 = zope_factory.zope_session()
+    assert session2.query(ZopeItem).all() == []
+    session2.add(ZopeItem(name="Clean"))
+    transaction.commit()
+    standalone = zope_factory.create()
+    try:
+        names = [i.name for i in standalone.query(ZopeItem).all()]
+        assert names == ["Clean"]
+    finally:
+        standalone.close()
+
+
+def test_remove_zope_session_without_creation_is_noop(zope_factory):
+    zope_factory.remove_zope_session()  # must not raise
+
+
+def test_session_scope_is_standalone_only(zope_factory):
+    with pytest.raises(TypeError):
+        with zope_factory.session_scope(zope=True):  # type: ignore[call-arg]
+            pass

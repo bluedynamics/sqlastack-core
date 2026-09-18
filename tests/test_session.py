@@ -7,7 +7,6 @@ from sqlmodel import Field
 from sqlmodel import SQLModel
 
 from sqlastack.core.config import SQLAStackConfig
-from sqlastack.core.engine import create_sqlastack_engine
 from sqlastack.core.exceptions import ConfigurationError
 from sqlastack.core.exceptions import IntegrityError
 from sqlastack.core.session import SessionFactory
@@ -16,7 +15,6 @@ from sqlastack.core.session import SessionFactory
 # Test-only model
 class Item(SQLModel, table=True):
     __tablename__ = "test_item"
-    __table_args__ = {"extend_existing": True}
 
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(max_length=100)
@@ -24,22 +22,18 @@ class Item(SQLModel, table=True):
 
 
 @pytest.fixture
-def factory():
-    config = SQLAStackConfig(database_url="sqlite:///:memory:")
-    engine = create_sqlastack_engine(config)
-    SQLModel.metadata.create_all(engine)
-    factory = SessionFactory(engine=engine)
+def factory(pg_engine):
+    factory = SessionFactory(engine=pg_engine)
     yield factory
-    factory.dispose()
+    factory.remove_zope_session()
 
 
 def test_factory_init_with_engine(factory):
     assert factory.engine is not None
 
 
-def test_factory_init_with_config():
-    config = SQLAStackConfig(database_url="sqlite:///:memory:")
-    factory = SessionFactory(config=config)
+def test_factory_init_with_config(pg_config: SQLAStackConfig):
+    factory = SessionFactory(config=pg_config)
     assert factory.engine is not None
     factory.dispose()
 
@@ -50,15 +44,9 @@ def test_factory_init_without_engine_or_config_raises():
 
 
 def test_create_standalone_session(factory):
-    session = factory.create(zope=False)
+    session = factory.create()
     assert session is not None
     session.close()
-
-
-def test_create_zope_true_works_when_installed(factory):
-    """With zope.sqlalchemy installed, create(zope=True) returns a session."""
-    session = factory.create(zope=True)
-    assert session is not None
 
 
 def test_session_scope_crud(factory):
@@ -120,6 +108,8 @@ def test_session_scope_rollback_on_app_exception(factory):
         assert len(items) == 0
 
 
-def test_factory_dispose(factory):
+def test_factory_dispose(pg_config: SQLAStackConfig):
+    factory = SessionFactory(config=pg_config)
     factory.dispose()
-    # Should not raise
+    # Should not raise; second dispose is also safe
+    factory.dispose()

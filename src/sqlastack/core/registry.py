@@ -69,16 +69,14 @@ class DatabaseRegistry:
             self._factories[name] = SessionFactory(config=self._configs[name])
         return self._factories[name]
 
-    def session(self, name: str, zope: bool = False) -> Session:
-        """Create a new session for the named database."""
-        return self.session_factory(name).create(zope=zope)
+    def session(self, name: str) -> Session:
+        """Create a new standalone session for the named database."""
+        return self.session_factory(name).create()
 
     @contextlib.contextmanager
-    def session_scope(
-        self, name: str, zope: bool = False
-    ) -> Generator[Session, None, None]:
+    def session_scope(self, name: str) -> Generator[Session, None, None]:
         """Transactional scope for the named database (delegates to SessionFactory)."""
-        with self.session_factory(name).session_scope(zope=zope) as session:
+        with self.session_factory(name).session_scope() as session:
             yield session
 
     def dispose_all(self) -> None:

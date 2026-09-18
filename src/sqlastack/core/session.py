@@ -9,6 +9,7 @@ from collections.abc import Generator
 import sqlalchemy.exc
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import scoped_session
 from sqlalchemy.orm import sessionmaker
 
 from sqlastack.core.config import SQLAStackConfig
@@ -23,24 +24,28 @@ logger = logging.getLogger(__name__)
 class SessionFactory:
     """Abstract Factory for SQLAlchemy sessions.
 
-    Creates sessions in two modes:
-    - Standalone (zope=False): Standard SQLAlchemy session with explicit commit.
-    - Zope-integrated (zope=True): Session registered with zope.sqlalchemy,
-      managed by the Zope transaction manager.
+    Two distinct APIs for two distinct session kinds:
+
+    - :meth:`create` / :meth:`session_scope`: standalone sessions with
+      explicit commit (Celery workers, scripts, tests).
+    - :meth:`zope_session` / :meth:`remove_zope_session`: the SHARED
+      thread-local session registered with zope.sqlalchemy, whose transaction
+      lifecycle is owned by the Zope transaction manager (Plone).
     """
 
     def __init__(
         self,
         engine: Engine | None = None,
         config: SQLAStackConfig | None = None,
-        keep_session: bool = False,
     ) -> None:
         """Initialize the factory.
 
         Args:
             engine: Pre-created engine. Takes precedence over config.
-            config: Configuration. If None and engine is None, loaded from env.
-            keep_session: If True, keep Zope sessions open after transaction ends.
+            config: Configuration used to create an engine.
+
+        Raises:
+            ConfigurationError: If neither engine nor config is given.
         """
         if engine is not None:
             self._engine = engine
@@ -53,73 +58,70 @@ class SessionFactory:
                 "SQLAStackConfig.from_env(name) explicitly)."
             )
         self._session_factory = sessionmaker(bind=self._engine)
-        self._keep_session = keep_session
-        self._scoped_session = None
+        self._scoped_session: scoped_session[Session] | None = None
 
     @property
     def engine(self) -> Engine:
         """Return the underlying SQLAlchemy engine."""
         return self._engine
 
-    def _ensure_scoped_session(self):
-        """Lazily create the scoped session for Zope mode.
+    def create(self) -> Session:
+        """Create a NEW standalone SQLAlchemy session.
+
+        The caller owns the session (close it). For the Zope-managed shared
+        session use :meth:`zope_session` instead.
+        """
+        return self._session_factory()
+
+    def zope_session(self) -> scoped_session[Session]:
+        """Return the SHARED, thread-local Zope-managed session proxy.
+
+        This is NOT a new session: every call in the same thread returns the
+        same underlying session, registered with zope.sqlalchemy. Its
+        transaction lifecycle is owned by the Zope transaction manager
+        (``transaction.commit()`` / ``transaction.abort()``). Do NOT call
+        ``close()`` on it; call :meth:`remove_zope_session` at the end of the
+        request/task instead.
 
         Uses a dedicated ``sessionmaker`` so that registering zope.sqlalchemy's
         transaction events does not attach them to the standalone sessionmaker.
         Sharing one sessionmaker would pollute standalone sessions with the
         Zope ``before_commit`` hook and break direct ``session.commit()``.
+
+        Raises:
+            ZopeNotAvailable: If zope.sqlalchemy is not installed (checked on
+                every call).
         """
+        from sqlastack.plone import _check_zope
+
+        _check_zope()
         if self._scoped_session is None:
             from sqlastack.plone import create_scoped_zope_session
 
             zope_session_factory = sessionmaker(bind=self._engine)
-            self._scoped_session = create_scoped_zope_session(
-                zope_session_factory,
-                keep_session=self._keep_session,
-            )
+            self._scoped_session = create_scoped_zope_session(zope_session_factory)
         return self._scoped_session
 
-    def create(self, zope: bool = False) -> Session:
-        """Create a new session.
+    def remove_zope_session(self) -> None:
+        """Dispose the CURRENT thread's Zope session (request-end teardown).
 
-        Args:
-            zope: If True, returns a Zope-integrated session.
-                  If False, creates a standard SQLAlchemy session.
-
-        Returns:
-            A new SQLAlchemy Session instance.
-
-        Raises:
-            ZopeNotAvailable: If zope=True but zope.sqlalchemy is not installed.
+        Safe to call when no Zope session was ever created. Each worker
+        thread must call this itself; it cannot clean up other threads.
         """
-        if zope:
-            return self._ensure_scoped_session()
-        return self._session_factory()
+        if self._scoped_session is not None:
+            self._scoped_session.remove()
 
     @contextlib.contextmanager
-    def session_scope(self, zope: bool = False) -> Generator[Session, None, None]:
-        """Context manager providing a transactional scope.
-
-        In standalone mode (zope=False): commits on success, rolls back on
-        exception, always closes.
-
-        In Zope mode (zope=True): yields the session without commit/rollback.
-        The Zope transaction manager handles the transaction lifecycle.
+    def session_scope(self) -> Generator[Session, None, None]:
+        """Standalone transactional scope: commit on success, rollback on
+        exception, always close.
 
         Raises:
-            IntegrityError: On constraint violation (standalone mode).
-            DataError: On invalid data (standalone mode).
-            ProgrammingError: On SQL syntax error (standalone mode).
-            CommitFailed: On other commit failures (standalone mode).
-            RollbackFailed: If rollback itself fails (standalone mode).
-            ZopeNotAvailable: If zope=True but zope.sqlalchemy is not installed.
+            IntegrityError / DataError / ProgrammingError / CommitFailed:
+                Translated commit-time failures.
+            RollbackFailed: If rollback itself fails.
         """
-        if zope:
-            session = self.create(zope=True)
-            yield session
-            return
-
-        session = self.create(zope=False)
+        session = self.create()
         try:
             yield session
             session.commit()
@@ -138,7 +140,11 @@ class SessionFactory:
             session.close()
 
     def dispose(self) -> None:
-        """Dispose of the underlying engine and all connections."""
-        if self._scoped_session is not None:
-            self._scoped_session.remove()
+        """Dispose engine and this thread's Zope session.
+
+        Note: scoped sessions created by OTHER threads are not removed here —
+        call :meth:`remove_zope_session` per thread, or only dispose at
+        process shutdown when no sessions are live.
+        """
+        self.remove_zope_session()
         self._engine.dispose()
