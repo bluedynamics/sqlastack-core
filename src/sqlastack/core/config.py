@@ -30,9 +30,16 @@ def _load_dotenv() -> None:
         pass
 
 
-def _parse_bool(value: str) -> bool:
-    """Parse a boolean from a string."""
-    return value.strip().lower() in ("true", "1", "yes")
+def _parse_bool(value: str, key: str) -> bool:
+    """Parse a boolean from a string; reject unrecognized tokens loudly."""
+    token = value.strip().lower()
+    if token in ("true", "1", "yes"):
+        return True
+    if token in ("false", "0", "no"):
+        return False
+    raise ConfigurationError(
+        f"{key} must be a boolean (true/false/1/0/yes/no), got: {value!r}"
+    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -82,7 +89,8 @@ class SQLAStackConfig:
             raise MissingDatabaseURL(f"{url_key} environment variable is required")
         try:
             masked = make_url(database_url).render_as_string(hide_password=True)
-        except sqlalchemy.exc.ArgumentError as exc:
+        except (sqlalchemy.exc.ArgumentError, ValueError) as exc:
+            # make_url raises plain ValueError e.g. for a non-numeric port
             raise InvalidConnectionString(
                 f"{url_key} is not a valid SQLAlchemy URL"
             ) from exc
@@ -104,9 +112,12 @@ class SQLAStackConfig:
             pool_timeout=_int("POOL_TIMEOUT", "30"),
             pool_recycle=_int("POOL_RECYCLE", "3600"),
             pool_pre_ping=_parse_bool(
-                os.environ.get(f"{prefix}_POOL_PRE_PING", "true")
+                os.environ.get(f"{prefix}_POOL_PRE_PING", "true"),
+                f"{prefix}_POOL_PRE_PING",
             ),
-            echo=_parse_bool(os.environ.get(f"{prefix}_ECHO", "false")),
+            echo=_parse_bool(
+                os.environ.get(f"{prefix}_ECHO", "false"), f"{prefix}_ECHO"
+            ),
             slow_query_ms=_int("SLOW_QUERY_MS", "1000"),
         )
 

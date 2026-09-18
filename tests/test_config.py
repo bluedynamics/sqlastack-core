@@ -64,10 +64,26 @@ def test_invalid_url_masks_password(monkeypatch):
     assert "S3cretPW" not in str(excinfo.value)
 
 
+def test_invalid_port_masks_password(monkeypatch):
+    """make_url wirft für einen Nicht-Zahlen-Port einen rohen ValueError —
+    auch der muss als InvalidConnectionString ohne Credentials ankommen."""
+    monkeypatch.setenv("SQLASTACK_FH_URL", "postgresql://u:S3cretPW@h:badport/db")
+    with pytest.raises(InvalidConnectionString) as excinfo:
+        SQLAStackConfig.from_env("fh")
+    assert "S3cretPW" not in str(excinfo.value)
+
+
 def test_invalid_int_raises_configuration_error(monkeypatch):
     monkeypatch.setenv("SQLASTACK_FH_URL", "postgresql://u:p@h/db")
     monkeypatch.setenv("SQLASTACK_FH_POOL_SIZE", "abc")
     with pytest.raises(ConfigurationError, match="SQLASTACK_FH_POOL_SIZE"):
+        SQLAStackConfig.from_env("fh")
+
+
+def test_invalid_bool_raises_configuration_error(monkeypatch):
+    monkeypatch.setenv("SQLASTACK_FH_URL", "postgresql://u:p@h/db")
+    monkeypatch.setenv("SQLASTACK_FH_ECHO", "ture")
+    with pytest.raises(ConfigurationError, match="SQLASTACK_FH_ECHO"):
         SQLAStackConfig.from_env("fh")
 
 

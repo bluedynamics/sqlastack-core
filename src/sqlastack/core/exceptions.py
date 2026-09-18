@@ -23,7 +23,7 @@ class ConfigurationError(SQLAStackError):
 
 
 class MissingDatabaseURL(ConfigurationError):
-    """Raised when DATABASE_URL is not set."""
+    """Raised when the ``SQLASTACK_<NAME>_URL`` variable is not set."""
 
 
 class InvalidConnectionString(ConfigurationError):
@@ -31,7 +31,7 @@ class InvalidConnectionString(ConfigurationError):
 
 
 class ZopeNotAvailable(ConfigurationError):
-    """Raised when zope=True is requested but zope.sqlalchemy is not installed."""
+    """Raised when a Zope session is requested but zope.sqlalchemy is not installed."""
 
 
 class UnknownDatabase(ConfigurationError):

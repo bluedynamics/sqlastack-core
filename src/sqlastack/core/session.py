@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import threading
 from collections.abc import Generator
 
 import sqlalchemy.exc
@@ -59,6 +60,7 @@ class SessionFactory:
             )
         self._session_factory = sessionmaker(bind=self._engine)
         self._scoped_session: scoped_session[Session] | None = None
+        self._zope_lock = threading.Lock()
 
     @property
     def engine(self) -> Engine:
@@ -96,10 +98,14 @@ class SessionFactory:
 
         _check_zope()
         if self._scoped_session is None:
-            from sqlastack.plone import create_scoped_zope_session
+            with self._zope_lock:
+                if self._scoped_session is None:
+                    from sqlastack.plone import create_scoped_zope_session
 
-            zope_session_factory = sessionmaker(bind=self._engine)
-            self._scoped_session = create_scoped_zope_session(zope_session_factory)
+                    zope_session_factory = sessionmaker(bind=self._engine)
+                    self._scoped_session = create_scoped_zope_session(
+                        zope_session_factory
+                    )
         return self._scoped_session
 
     def remove_zope_session(self) -> None:

@@ -41,9 +41,12 @@ def pg_engine(pg_config):
         for table in SQLModel.metadata.tables.values()
         if table.schema is not None
     }
+    preparer = engine.dialect.identifier_preparer
     with engine.begin() as conn:
         for schema in sorted(schemas):
-            conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"'))
+            conn.execute(
+                text(f"CREATE SCHEMA IF NOT EXISTS {preparer.quote_schema(schema)}")
+            )
     SQLModel.metadata.create_all(engine)
     yield engine
     engine.dispose()
@@ -63,6 +66,10 @@ def pg_registry(pg_engine):
     registry = DatabaseRegistry()
     registry.register_factory("fh", SessionFactory(engine=pg_engine))
     yield registry
+    # a test failing mid-zope-transaction must not bleed into the next test
+    import transaction
+
+    transaction.abort()
     registry.remove_zope_sessions()
 
 

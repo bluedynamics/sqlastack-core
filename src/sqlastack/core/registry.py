@@ -136,11 +136,12 @@ class DatabaseRegistry:
 
     def remove_zope_sessions(self) -> None:
         """Request-end teardown: remove this thread's Zope sessions everywhere."""
-        for factory in self._factories.values():
+        # copy: another thread's first request may insert a factory mid-iteration
+        for factory in list(self._factories.values()):
             factory.remove_zope_session()
 
     def dispose_all(self) -> None:
         """Dispose all created SessionFactories and their engines (shutdown)."""
-        for factory in self._factories.values():
+        for factory in list(self._factories.values()):
             factory.dispose()
         self._factories.clear()
