@@ -7,6 +7,8 @@ Uses conditional imports. When Zope packages are not installed
 from __future__ import annotations
 
 from sqlastack.core.exceptions import ZopeNotAvailable
+from sqlastack.core.registry import DatabaseRegistry
+import threading
 
 try:
     from zope.sqlalchemy import mark_changed  # noqa: F401
@@ -45,3 +47,44 @@ def create_scoped_zope_session(
     scoped = scoped_session(session_factory)
     _register(scoped, keep_session=keep_session)
     return scoped
+
+
+_registry: DatabaseRegistry | None = None
+_registry_lock = threading.Lock()
+
+
+def get_registry() -> DatabaseRegistry:
+    """Return the process-wide DatabaseRegistry (built lazily from env).
+
+    First access runs ``DatabaseRegistry.from_env()`` + ``warm_up()`` under a
+    lock, so concurrent first requests share one registry and pay no
+    per-request engine construction afterwards.
+    """
+    global _registry
+    if _registry is None:
+        with _registry_lock:
+            if _registry is None:
+                registry = DatabaseRegistry.from_env()
+                registry.warm_up()
+                _registry = registry
+    return _registry
+
+
+def reset_registry() -> None:
+    """Dispose and forget the process-wide registry (tests, shutdown)."""
+    global _registry
+    with _registry_lock:
+        if _registry is not None:
+            _registry.dispose_all()
+            _registry = None
+
+
+def close_zope_sessions(event=None) -> None:
+    """End-of-request teardown: remove this thread's Zope sessions.
+
+    Registered (by consuming Plone add-ons, e.g. sqlastack.formstore) as a
+    subscriber for ZPublisher's ``IPubSuccess`` AND ``IPubFailure``. A request
+    that never touched SQL is a no-op — the registry is not built here.
+    """
+    if _registry is not None:
+        _registry.remove_zope_sessions()
