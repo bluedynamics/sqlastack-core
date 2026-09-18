@@ -13,24 +13,10 @@ from sqlalchemy.orm import sessionmaker
 
 from sqlastack.core.config import SQLAStackConfig
 from sqlastack.core.engine import create_sqlastack_engine
-from sqlastack.core.exceptions import CommitFailed
-from sqlastack.core.exceptions import DataError
-from sqlastack.core.exceptions import IntegrityError
-from sqlastack.core.exceptions import ProgrammingError
 from sqlastack.core.exceptions import RollbackFailed
+from sqlastack.core.exceptions import translate_exception
 
 logger = logging.getLogger(__name__)
-
-
-def _translate_exception(exc: sqlalchemy.exc.SQLAlchemyError) -> Exception:
-    """Translate a SQLAlchemy exception into a sqlastack exception."""
-    if isinstance(exc, sqlalchemy.exc.IntegrityError):
-        return IntegrityError(str(exc), original=exc)
-    if isinstance(exc, sqlalchemy.exc.DataError):
-        return DataError(str(exc), original=exc)
-    if isinstance(exc, sqlalchemy.exc.ProgrammingError):
-        return ProgrammingError(str(exc), original=exc)
-    return CommitFailed(str(exc), original=exc)
 
 
 class SessionFactory:
@@ -139,7 +125,7 @@ class SessionFactory:
                 raise RollbackFailed(
                     str(rollback_exc), original=rollback_exc
                 ) from exc
-            raise _translate_exception(exc) from exc
+            raise translate_exception(exc) from exc
         except Exception:
             session.rollback()
             raise

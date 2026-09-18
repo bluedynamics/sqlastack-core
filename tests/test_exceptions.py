@@ -4,26 +4,20 @@ from __future__ import annotations
 
 from sqlastack.core.exceptions import CommitFailed
 from sqlastack.core.exceptions import ConfigurationError
-from sqlastack.core.exceptions import ConnectionError
-from sqlastack.core.exceptions import ConnectionRefused
-from sqlastack.core.exceptions import ConnectionTimeout
 from sqlastack.core.exceptions import DataError
 from sqlastack.core.exceptions import IntegrityError
 from sqlastack.core.exceptions import InvalidConnectionString
-from sqlastack.core.exceptions import MigrationConflict
-from sqlastack.core.exceptions import MigrationError
-from sqlastack.core.exceptions import MigrationFailed
 from sqlastack.core.exceptions import MissingDatabaseURL
-from sqlastack.core.exceptions import PoolExhausted
 from sqlastack.core.exceptions import ProgrammingError
 from sqlastack.core.exceptions import QueryError
 from sqlastack.core.exceptions import RollbackFailed
 from sqlastack.core.exceptions import SQLAStackError
 from sqlastack.core.exceptions import TransactionError
-from sqlastack.core.exceptions import TwoPhaseCommitFailed
 from sqlastack.core.exceptions import UnknownDatabase
 from sqlastack.core.exceptions import ZopeNotAvailable
+from sqlastack.core.exceptions import translate_exception
 import inspect
+import sqlalchemy.exc
 import sqlastack.core.exceptions as exc_mod
 
 
@@ -46,20 +40,13 @@ def test_hierarchy_configuration():
     assert issubclass(MissingDatabaseURL, ConfigurationError)
     assert issubclass(InvalidConnectionString, ConfigurationError)
     assert issubclass(ZopeNotAvailable, ConfigurationError)
-
-
-def test_hierarchy_connection():
-    assert issubclass(ConnectionError, SQLAStackError)
-    assert issubclass(ConnectionTimeout, ConnectionError)
-    assert issubclass(ConnectionRefused, ConnectionError)
-    assert issubclass(PoolExhausted, ConnectionError)
+    assert issubclass(UnknownDatabase, ConfigurationError)
 
 
 def test_hierarchy_transaction():
     assert issubclass(TransactionError, SQLAStackError)
     assert issubclass(CommitFailed, TransactionError)
     assert issubclass(RollbackFailed, TransactionError)
-    assert issubclass(TwoPhaseCommitFailed, TransactionError)
 
 
 def test_hierarchy_query():
@@ -69,20 +56,48 @@ def test_hierarchy_query():
     assert issubclass(ProgrammingError, QueryError)
 
 
-def test_hierarchy_migration():
-    assert issubclass(MigrationError, SQLAStackError)
-    assert issubclass(MigrationFailed, MigrationError)
-    assert issubclass(MigrationConflict, MigrationError)
+def test_speculative_classes_removed():
+    """Nie geraiste Klassen (Review 2026-09-18) existieren nicht mehr."""
+    for name in (
+        "ConnectionError",
+        "ConnectionTimeout",
+        "ConnectionRefused",
+        "PoolExhausted",
+        "TwoPhaseCommitFailed",
+        "MigrationError",
+        "MigrationFailed",
+        "MigrationConflict",
+    ):
+        assert not hasattr(exc_mod, name), f"{name} should be removed"
 
 
 def test_all_exceptions_are_sqlastack_error():
-    """Every exception class in the module must be a subclass of SQLAStackError."""
+    """Every exception class DEFINED in the module is a SQLAStackError."""
     for name, obj in inspect.getmembers(exc_mod, inspect.isclass):
-        if issubclass(obj, Exception) and obj is not SQLAStackError:
-            assert issubclass(obj, SQLAStackError), f"{name} is not a SQLAStackError"
+        if not issubclass(obj, Exception):
+            continue
+        if obj.__module__ != exc_mod.__name__:
+            continue
+        assert issubclass(obj, SQLAStackError), f"{name} is not a SQLAStackError"
 
 
-def test_unknown_database_is_configuration_error():
-    err = UnknownDatabase("no db named 'fh'")
-    assert isinstance(err, ConfigurationError)
-    assert "fh" in str(err)
+def test_translate_integrity():
+    orig = sqlalchemy.exc.IntegrityError("stmt", {}, Exception("dup"))
+    err = translate_exception(orig)
+    assert isinstance(err, IntegrityError)
+    assert err.original is orig
+
+
+def test_translate_data_error():
+    orig = sqlalchemy.exc.DataError("stmt", {}, Exception("bad"))
+    assert isinstance(translate_exception(orig), DataError)
+
+
+def test_translate_programming_error():
+    orig = sqlalchemy.exc.ProgrammingError("stmt", {}, Exception("syntax"))
+    assert isinstance(translate_exception(orig), ProgrammingError)
+
+
+def test_translate_fallback_is_commit_failed():
+    orig = sqlalchemy.exc.OperationalError("stmt", {}, Exception("boom"))
+    assert isinstance(translate_exception(orig), CommitFailed)

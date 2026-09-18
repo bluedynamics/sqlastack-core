@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sqlalchemy.exc
+
 
 class SQLAStackError(Exception):
     """Base exception for all sqlastack errors."""
@@ -36,25 +38,6 @@ class UnknownDatabase(ConfigurationError):
     """Raised when a database name is requested that is not registered."""
 
 
-# --- Connection ---
-
-
-class ConnectionError(SQLAStackError):
-    """Base for connection-related errors."""
-
-
-class ConnectionTimeout(ConnectionError):
-    """Raised when connection attempt times out."""
-
-
-class ConnectionRefused(ConnectionError):
-    """Raised when database refuses connection."""
-
-
-class PoolExhausted(ConnectionError):
-    """Raised when connection pool has no available connections."""
-
-
 # --- Transaction ---
 
 
@@ -68,10 +51,6 @@ class CommitFailed(TransactionError):
 
 class RollbackFailed(TransactionError):
     """Raised when rollback fails."""
-
-
-class TwoPhaseCommitFailed(TransactionError):
-    """Raised when two-phase commit fails."""
 
 
 # --- Query ---
@@ -93,16 +72,17 @@ class ProgrammingError(QueryError):
     """Raised for SQL syntax errors or invalid operations."""
 
 
-# --- Migration ---
+def translate_exception(exc: sqlalchemy.exc.SQLAlchemyError) -> SQLAStackError:
+    """Translate a SQLAlchemy exception into the matching sqlastack exception.
 
-
-class MigrationError(SQLAStackError):
-    """Base for migration-related errors."""
-
-
-class MigrationFailed(MigrationError):
-    """Raised when a migration execution fails."""
-
-
-class MigrationConflict(MigrationError):
-    """Raised when migration versions conflict."""
+    Returns the translated exception instance (does not raise). Used at the
+    flush boundary (Repository) and at the commit boundary (session_scope) so
+    both session modes surface the SAME sqlastack exception types.
+    """
+    if isinstance(exc, sqlalchemy.exc.IntegrityError):
+        return IntegrityError(str(exc), original=exc)
+    if isinstance(exc, sqlalchemy.exc.DataError):
+        return DataError(str(exc), original=exc)
+    if isinstance(exc, sqlalchemy.exc.ProgrammingError):
+        return ProgrammingError(str(exc), original=exc)
+    return CommitFailed(str(exc), original=exc)
