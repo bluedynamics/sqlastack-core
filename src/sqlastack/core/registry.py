@@ -109,7 +109,8 @@ class DatabaseRegistry:
         if normalized not in self._configs:
             raise UnknownDatabase(
                 f"No database registered under name {normalized!r}. "
-                f"Known: {self.names()}"
+                f"Known: {self.names()}. Configure "
+                f"SQLASTACK_{normalized.upper()}_URL (or register it explicitly)."
             )
         with self._lock:
             if normalized not in self._factories:
