@@ -590,16 +590,6 @@ dotenv = [
     { name = "python-dotenv" },
 ]
 test = [
-    { name = "pytest" },
-    { name = "pytest-cov" },
-]
-test-zope = [
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "transaction" },
-    { name = "zope-sqlalchemy" },
-]
-testpg = [
     { name = "psycopg", extra = ["binary"] },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -615,20 +605,19 @@ zope = [
 [package.metadata]
 requires-dist = [
     { name = "pdbp", marker = "extra == 'develop'" },
-    { name = "psycopg", extras = ["binary"], marker = "extra == 'testpg'", specifier = ">=3.1" },
+    { name = "psycopg", extras = ["binary"], marker = "extra == 'test'", specifier = ">=3.1" },
     { name = "pytest", marker = "extra == 'test'" },
     { name = "pytest-cov", marker = "extra == 'test'" },
     { name = "python-dotenv", marker = "extra == 'dotenv'" },
     { name = "sqlalchemy", specifier = ">=2.0,<2.1" },
-    { name = "sqlastack-core", extras = ["dotenv", "testpg"], marker = "extra == 'develop'" },
-    { name = "sqlastack-core", extras = ["test-zope"], marker = "extra == 'testpg'" },
-    { name = "sqlastack-core", extras = ["zope", "test"], marker = "extra == 'test-zope'" },
+    { name = "sqlastack-core", extras = ["dotenv", "test"], marker = "extra == 'develop'" },
+    { name = "sqlastack-core", extras = ["zope"], marker = "extra == 'test'" },
     { name = "sqlmodel", specifier = ">=0.0.16,<1.0" },
-    { name = "testcontainers", marker = "extra == 'testpg'", specifier = ">=4.0" },
+    { name = "testcontainers", marker = "extra == 'test'", specifier = ">=4.0" },
     { name = "transaction", marker = "extra == 'zope'" },
     { name = "zope-sqlalchemy", marker = "extra == 'zope'", specifier = ">=4.0" },
 ]
-provides-extras = ["dotenv", "zope", "test", "test-zope", "testpg", "develop"]
+provides-extras = ["dotenv", "zope", "test", "develop"]
 
 [[package]]
 name = "sqlmodel"
