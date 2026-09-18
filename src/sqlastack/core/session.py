@@ -13,6 +13,7 @@ from sqlalchemy.orm import sessionmaker
 
 from sqlastack.core.config import SQLAStackConfig
 from sqlastack.core.engine import create_sqlastack_engine
+from sqlastack.core.exceptions import ConfigurationError
 from sqlastack.core.exceptions import RollbackFailed
 from sqlastack.core.exceptions import translate_exception
 
@@ -46,7 +47,11 @@ class SessionFactory:
         elif config is not None:
             self._engine = create_sqlastack_engine(config)
         else:
-            self._engine = create_sqlastack_engine()
+            raise ConfigurationError(
+                "SessionFactory requires either an engine or a config; "
+                "implicit environment lookup was removed (use "
+                "SQLAStackConfig.from_env(name) explicitly)."
+            )
         self._session_factory = sessionmaker(bind=self._engine)
         self._keep_session = keep_session
         self._scoped_session = None

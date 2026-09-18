@@ -40,10 +40,3 @@ def test_engine_connects():
         result = conn.execute(text("SELECT 1"))
         assert result.scalar() == 1
     engine.dispose()
-
-
-def test_create_engine_from_env(monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
-    engine = create_sqlastack_engine()
-    assert engine is not None
-    engine.dispose()

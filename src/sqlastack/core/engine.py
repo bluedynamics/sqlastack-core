@@ -16,18 +16,13 @@ from sqlastack.core.config import SQLAStackConfig
 logger = logging.getLogger(__name__)
 
 
-def create_sqlastack_engine(config: SQLAStackConfig | None = None) -> Engine:
+def create_sqlastack_engine(config: SQLAStackConfig) -> Engine:
     """Create a SQLAlchemy Engine with dialect-appropriate settings.
-
-    If config is None, loads from environment via SQLAStackConfig.from_env().
 
     For PostgreSQL: configures connection pooling with all pool parameters.
     For SQLite in-memory: uses StaticPool with check_same_thread=False.
     For SQLite file: uses default pool settings.
     """
-    if config is None:
-        config = SQLAStackConfig.from_env()
-
     kwargs: dict[str, Any] = {"echo": config.echo}
 
     if config.is_sqlite:

@@ -8,6 +8,7 @@ from sqlmodel import SQLModel
 
 from sqlastack.core.config import SQLAStackConfig
 from sqlastack.core.engine import create_sqlastack_engine
+from sqlastack.core.exceptions import ConfigurationError
 from sqlastack.core.exceptions import IntegrityError
 from sqlastack.core.session import SessionFactory
 
@@ -43,11 +44,9 @@ def test_factory_init_with_config():
     factory.dispose()
 
 
-def test_factory_init_from_env(monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
-    factory = SessionFactory()
-    assert factory.engine is not None
-    factory.dispose()
+def test_factory_init_without_engine_or_config_raises():
+    with pytest.raises(ConfigurationError):
+        SessionFactory()
 
 
 def test_create_standalone_session(factory):
