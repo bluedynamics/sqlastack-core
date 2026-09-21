@@ -36,3 +36,12 @@ def test_truncate_cleaned_schema_qualified_table(pg_registry):
 
 def test_pg_registry_reuses_shared_engine(pg_registry, pg_engine):
     assert pg_registry.session_factory("fh").engine is pg_engine
+
+
+def test_pg_url_env_override(monkeypatch):
+    """CI stellt PG als Service-Container; die Fixture nutzt dann dessen URL."""
+    import sqlastack.core.testing as testing_mod
+
+    monkeypatch.setenv("SQLASTACK_TEST_PG_URL", "postgresql+psycopg://u:p@h:5432/db")
+    gen = testing_mod.pg_url.__wrapped__()
+    assert next(gen) == "postgresql+psycopg://u:p@h:5432/db"

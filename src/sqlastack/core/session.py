@@ -2,22 +2,21 @@
 
 from __future__ import annotations
 
-import contextlib
-import logging
-import threading
 from collections.abc import Generator
-
-import sqlalchemy.exc
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import scoped_session
 from sqlalchemy.orm import sessionmaker
-
 from sqlastack.core.config import SQLAStackConfig
 from sqlastack.core.engine import create_sqlastack_engine
 from sqlastack.core.exceptions import ConfigurationError
 from sqlastack.core.exceptions import RollbackFailed
 from sqlastack.core.exceptions import translate_exception
+import contextlib
+import logging
+import sqlalchemy.exc
+import threading
+
 
 logger = logging.getLogger(__name__)
 
@@ -135,9 +134,7 @@ class SessionFactory:
             try:
                 session.rollback()
             except sqlalchemy.exc.SQLAlchemyError as rollback_exc:
-                raise RollbackFailed(
-                    str(rollback_exc), original=rollback_exc
-                ) from exc
+                raise RollbackFailed(str(rollback_exc), original=rollback_exc) from exc
             raise translate_exception(exc) from exc
         except Exception:
             session.rollback()

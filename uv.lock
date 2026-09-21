@@ -568,7 +568,6 @@ wheels = [
 
 [[package]]
 name = "sqlastack-core"
-version = "0.1.0.dev0"
 source = { editable = "." }
 dependencies = [
     { name = "sqlalchemy" },
@@ -605,19 +604,26 @@ zope = [
 [package.metadata]
 requires-dist = [
     { name = "pdbp", marker = "extra == 'develop'" },
+    { name = "psycopg", extras = ["binary"], marker = "extra == 'develop'", specifier = ">=3.1" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'test'", specifier = ">=3.1" },
+    { name = "pytest", marker = "extra == 'develop'" },
     { name = "pytest", marker = "extra == 'test'" },
+    { name = "pytest-cov", marker = "extra == 'develop'" },
     { name = "pytest-cov", marker = "extra == 'test'" },
+    { name = "python-dotenv", marker = "extra == 'develop'" },
     { name = "python-dotenv", marker = "extra == 'dotenv'" },
     { name = "sqlalchemy", specifier = ">=2.0,<2.1" },
-    { name = "sqlastack-core", extras = ["dotenv", "test"], marker = "extra == 'develop'" },
-    { name = "sqlastack-core", extras = ["zope"], marker = "extra == 'test'" },
     { name = "sqlmodel", specifier = ">=0.0.16,<1.0" },
+    { name = "testcontainers", marker = "extra == 'develop'", specifier = ">=4.0" },
     { name = "testcontainers", marker = "extra == 'test'", specifier = ">=4.0" },
+    { name = "transaction", marker = "extra == 'develop'" },
+    { name = "transaction", marker = "extra == 'test'" },
     { name = "transaction", marker = "extra == 'zope'" },
+    { name = "zope-sqlalchemy", marker = "extra == 'develop'", specifier = ">=4.0" },
+    { name = "zope-sqlalchemy", marker = "extra == 'test'", specifier = ">=4.0" },
     { name = "zope-sqlalchemy", marker = "extra == 'zope'", specifier = ">=4.0" },
 ]
-provides-extras = ["dotenv", "zope", "test", "develop"]
+provides-extras = ["develop", "dotenv", "test", "zope"]
 
 [[package]]
 name = "sqlmodel"

@@ -1,6 +1,6 @@
 [project]
 name = "sqlastack-core"
-version = "0.1.0.dev0"
+dynamic = ["version"]
 description = "Core SQL access layer: config, engine, session factory, exceptions."
 readme = "README.md"
 authors = [
@@ -34,11 +34,19 @@ test = [
 develop = ["sqlastack-core[dotenv,test]", "pdbp"]
 
 [build-system]
-requires = ["hatchling>=1.26"]
+requires = ["hatchling>=1.26", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sqlastack"]
+
+[tool.hatch.version]
+source = "vcs"
+raw-options = { local_scheme = "no-local-version" }
+
+[tool.coverage.run]
+parallel = true
+source = ["src"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

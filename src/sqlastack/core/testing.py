@@ -14,7 +14,14 @@ import pytest
 
 @pytest.fixture(scope="session")
 def pg_url():
-    """Connection URL of a session-scoped PostgreSQL testcontainer."""
+    """Connection URL: ``SQLASTACK_TEST_PG_URL`` if set (CI service container),
+    else a session-scoped PostgreSQL testcontainer."""
+    import os
+
+    url = os.environ.get("SQLASTACK_TEST_PG_URL")
+    if url:
+        yield url
+        return
     from testcontainers.postgres import PostgresContainer
 
     with PostgresContainer("postgres:16") as pg:

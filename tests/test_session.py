@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
-from sqlmodel import Field
-from sqlmodel import SQLModel
-
 from sqlastack.core.config import SQLAStackConfig
 from sqlastack.core.exceptions import ConfigurationError
 from sqlastack.core.exceptions import IntegrityError
 from sqlastack.core.session import SessionFactory
+from sqlmodel import Field
+from sqlmodel import SQLModel
+import pytest
 
 
 # Test-only model
